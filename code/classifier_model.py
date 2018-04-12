@@ -1,3 +1,4 @@
+#coding:utf-8
 import re, os, glob
 import traceback
 import yaml
@@ -11,15 +12,13 @@ from sklearn.svm import LinearSVC, SVC
 from sklearn.neighbors import KNeighborsClassifier, RadiusNeighborsClassifier
 from sklearn.metrics import confusion_matrix
 from sklearn.pipeline import Pipeline
-from sklearn.grid_search import GridSearchCV
+from sklearn.model_selection import GridSearchCV
 
 import jieba
 import pickle
 import itertools
 
-os.chdir("/Users/zevil/Downloads/projects/owl")
-
-
+os.chdir("C:\Projects\owl")
 
 
 class ResumeClassifier():
@@ -102,7 +101,7 @@ class ResumeClassifier():
 
         regex = r'\n(.*?)\n(.*?)\n( \(该职位已下线\) )?\n+(.*?)\n+(.*?)\n职位诱惑：\n(.*?)\n+职位描述：\n+(.*)\n+工作地址(.*?)查看(完整)?地图'
         pattern = re.compile(regex, re.MULTILINE | re.DOTALL)
-        with open(file, 'r+') as f:
+        with open(file, 'r+', encoding='utf-8') as f:
             mo = re.search(pattern, f.read())
             if mo is None:
                 return jd
@@ -126,7 +125,7 @@ class ResumeClassifier():
         return jd
 
     def __load_category_change(self, path):
-        with open(path, 'r') as f:
+        with open(path, 'r', encoding='utf-8') as f:
             m = yaml.load(f)
         return m
 
@@ -134,7 +133,7 @@ class ResumeClassifier():
         if not os.path.isfile(path):
             raise ("Fail to find file {}".format(path))
         stopwords = list()
-        with open(path, 'r') as f:
+        with open(path, 'r', encoding='utf-8') as f:
             for line in f:
                 stopwords.append(line.strip())
         return stopwords
@@ -185,28 +184,26 @@ class ResumeClassifier():
         self.__dataset = dataset
 
     def __build_svm_pipe2(self, k=500):
-        cv = CountVectorizer(tokenizer=ResumeClassifier.default_tokenizer)
+        cv = CountVectorizer(tokenizer=ResumeClassifier.default_tokenizer,
+                             stop_words=self.__stopwords)
         sk = SelectKBest(chi2, k=k)
         tfidf = TfidfTransformer()
         # ovr  = OneVsRestClassifier(SVC(probability=True, kernel='rbf'))
-        svm = SVC(probability=True, kernel='linear')
+        svm = SVC(probability=True)
         pipe = Pipeline(steps=[('cv', cv), ('tfidf', tfidf), ('sk', sk), ('svm', svm)])
         return pipe
 
     def __build_model(self):
         model = dict()
-        param_range = [0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000]
-        param_grid = [{
-            'clf__C': param_range,
-            'clf__kernel': ['linear']},
-            {'clf__C': param_range,
-             'clf__gamma': param_range,
-             'clf__kernel': ['rbf']}]
+        param_grid = [
+            {'svm__C': [1, 10, 100, 1000], 'svm__kernel': ['linear']},
+            {'svm__C': [1, 10, 100, 1000], 'svm__gamma': [0.001, 0.0001], 'svm__kernel': ['rbf']},
+        ]
         model['svm'] = GridSearchCV(estimator=self.__build_svm_pipe2(k=700),
                                     param_grid=param_grid,
                                     scoring='accuracy',
                                     cv=10,
-                                    n_jobs=-1)
+                                    n_jobs=1)
 
         # model['svm'] = self.__build_svm_pipe2(k=700)
         for cate2 in self.__dataset.keys():
@@ -217,7 +214,7 @@ class ResumeClassifier():
                                         param_grid=param_grid,
                                         scoring='accuracy',
                                         cv=10,
-                                        n_jobs=-1)
+                                        n_jobs=1)
 
         self.__model = model
 
@@ -244,8 +241,8 @@ if __name__ == '__main__':
     rc.prepare_for_fit()
     rc.fit()
     score = rc.score()
-    rc.save_model('dist/resume_classifier_model.pkl')
-    print(score)
+    # rc.save_model('dist/resume_classifier_model.pkl')
+    # print(score)
     #
     # Load pre-trained model then predict
     # print(os.getcwd())
