@@ -18,7 +18,7 @@ import jieba
 import pickle
 import itertools
 
-os.chdir("C:\Projects\owl")
+os.chdir("/Users/zevil/Downloads/projects/owl")
 
 
 class ResumeClassifier():
@@ -45,8 +45,8 @@ class ResumeClassifier():
             if text_path:
                 jds = self.__load_jd_from_text(text_path)
                 jds.replace(['\\n| |\\xa0|\/|\（|\）|\-'], [''], regex=True, inplace=True)
-                #                 self.__jds = jds[jds.category1 == '技术']
-                self.__jds = jds
+                self.__jds = jds[jds.category1 == '技术']
+                # self.__jds = jds
             else:
                 must_cols = set(['category1', 'category2', 'category3', 'detail', 'job_name'])
                 df_cols = set(date_frame.columns.tolist())
@@ -183,26 +183,36 @@ class ResumeClassifier():
 
         self.__dataset = dataset
 
-    def __build_svm_pipe2(self, k=500):
+    def __data_prepare(self, X_train):
         cv = CountVectorizer(tokenizer=ResumeClassifier.default_tokenizer,
                              stop_words=self.__stopwords)
-        sk = SelectKBest(chi2, k=k)
         tfidf = TfidfTransformer()
+        X = cv.fit_transform(X_train)
+        X_tfidf = tfidf.fit_transform(X)
+        return X_tfidf
+
+
+    def __build_svm_pipe2(self):
+        # cv = CountVectorizer(tokenizer=ResumeClassifier.default_tokenizer,
+        #                      stop_words=self.__stopwords)
+        sk = SelectKBest(chi2)
+        # tfidf = TfidfTransformer()
         # ovr  = OneVsRestClassifier(SVC(probability=True, kernel='rbf'))
         svm = SVC(probability=True)
-        pipe = Pipeline(steps=[('cv', cv), ('tfidf', tfidf), ('sk', sk), ('svm', svm)])
+        # pipe = Pipeline(steps=[('cv', cv), ('tfidf', tfidf), ('sk', sk), ('svm', svm)])
+        pipe = Pipeline(steps=[('sk', sk), ('svm', svm)])
         return pipe
 
     def __build_model(self):
         model = dict()
         param_grid = [
-            {'svm__C': [1, 10, 100, 1000], 'svm__kernel': ['linear']},
-            {'svm__C': [1, 10, 100, 1000], 'svm__gamma': [0.001, 0.0001], 'svm__kernel': ['rbf']},
+            {'svm__C': [1, 10, 100], 'svm__kernel': ['linear'], 'sk__k':[50, 100, 500]},
+            # {'svm__C': [1, 10, 100], 'svm__gamma': [0.001, 0.0001], 'svm__kernel': ['rbf'], 'sk__k':[50, 100, 500]},
         ]
-        model['svm'] = GridSearchCV(estimator=self.__build_svm_pipe2(k=700),
+        model['svm'] = GridSearchCV(estimator=self.__build_svm_pipe2(),
                                     param_grid=param_grid,
                                     scoring='accuracy',
-                                    cv=10,
+                                    cv=5,
                                     n_jobs=1)
 
         # model['svm'] = self.__build_svm_pipe2(k=700)
@@ -210,10 +220,10 @@ class ResumeClassifier():
             if cate2 == 'svm' or cate2[:2] != '技术':
                 continue
             # model[cate2] = self.__build_svm_pipe2(k=700)
-            model[cate2] = GridSearchCV(estimator=self.__build_svm_pipe2(k=700),
+            model[cate2] = GridSearchCV(estimator=self.__build_svm_pipe2(),
                                         param_grid=param_grid,
                                         scoring='accuracy',
-                                        cv=10,
+                                        cv=5,
                                         n_jobs=1)
 
         self.__model = model
@@ -227,10 +237,14 @@ class ResumeClassifier():
         for name, model in self.__model.items():
             X_train = self.__dataset[name]['X_train']
             y_train = self.__dataset[name]['y_train']
+            X_train = self.__data_prepare(X_train)
             print('---start to train {}'.format(name))
+            # print(model)
             # print(X_train.sample(1))
             # print(y_train.sample(1))
             model.fit(X_train, y_train)
+            print('best score: {}'.format(model.best_score_))
+            print('best params: {}'.format(model.best_params_))
 
 
 if __name__ == '__main__':

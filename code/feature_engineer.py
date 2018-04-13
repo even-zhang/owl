@@ -50,7 +50,7 @@ for name, item in data.items():
     Y = list(item['y_train'])
     X_tfidf = tfidf.fit_transform(X)
     # sk = SelectKBest(chi2, k=k)
-    sk = SelectKBest(chi2, k=k).fit(X, Y)
+    sk = SelectKBest(chi2, k=k).fit(X_tfidf, Y)
 
     words = cv.get_feature_names()
     new_X = sk.transform(X)
